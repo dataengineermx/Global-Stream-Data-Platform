@@ -1,0 +1,24 @@
+# Datasource de Grafana hacia la BD de negocio (postgres-data).
+# Se conecta por la red Docker "airflow-net": host = nombre del servicio, puerto interno 5432.
+# La contraseña se lee de la variable de entorno GRAFANA_DB_PASSWORD del contenedor de Grafana.
+apiVersion: 1
+
+datasources:
+  - name: Postgres Sismos
+    uid: postgres-sismos          # los dashboards se enlazan por este uid; no lo cambies
+    type: postgres
+    access: proxy
+    url: postgres-data:5432
+    user: grafana_ro              # usuario de SOLO LECTURA (ver SQL de permisos)
+    isDefault: true
+    editable: false
+    jsonData:
+      database: datadb
+      sslmode: disable            # tráfico interno de la red Docker
+      postgresVersion: 1500       # valor más alto que ofrece Grafana; sirve para PostgreSQL 16
+      maxOpenConns: 5
+      maxIdleConns: 2
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD

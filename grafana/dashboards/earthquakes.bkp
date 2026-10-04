@@ -1,0 +1,533 @@
+{
+  "uid": "earthquakes-main",
+  "title": "Sismos – Global Data Platform",
+  "tags": [
+    "earthquakes",
+    "portfolio"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "editable": true,
+  "templating": {
+    "list": [
+      {
+        "name": "min_mag",
+        "label": "Magnitud mínima",
+        "type": "custom",
+        "query": "0,2,3,4,4.5,5,6",
+        "current": {
+          "text": "4",
+          "value": "4"
+        },
+        "options": [],
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "ambito",
+        "label": "Ámbito",
+        "type": "custom",
+        "query": "Cerca de México (≤150 km) : near,Solo en tierra : land,Todo el mundo : all",
+        "current": {
+          "text": "Cerca de México (≤150 km)",
+          "value": "near"
+        },
+        "options": [],
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Eventos (filtro actual)",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS eventos FROM analytics.fct_earthquakes WHERE $__timeFilter(event_time) AND magnitude >= $min_mag AND ('$ambito' = 'all' OR ('$ambito' = 'near' AND estado IS NOT NULL) OR ('$ambito' = 'land' AND in_mexico_land))"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Magnitud máxima",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT max(magnitude) AS magnitud_max FROM analytics.fct_earthquakes WHERE $__timeFilter(event_time) AND magnitude >= $min_mag AND ('$ambito' = 'all' OR ('$ambito' = 'near' AND estado IS NOT NULL) OR ('$ambito' = 'land' AND in_mexico_land))"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Último run del pipeline",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (extract(epoch FROM max(finished_at)) * 1000)::bigint AS ultimo_run FROM ops.pipeline_runs"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeFromNow"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Filas rechazadas (histórico)",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT sum(n)::bigint AS rechazadas FROM ops.v_rejected_by_reason"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Mapa de sismos",
+      "type": "geomap",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT event_time AS time, latitude, longitude, magnitude, place, estado, municipio FROM analytics.fct_earthquakes WHERE $__timeFilter(event_time) AND magnitude >= $min_mag AND ('$ambito' = 'all' OR ('$ambito' = 'near' AND estado IS NOT NULL) OR ('$ambito' = 'land' AND in_mexico_land)) ORDER BY magnitude DESC LIMIT 5000"
+        }
+      ],
+      "options": {
+        "view": {
+          "id": "coords",
+          "lat": 23.5,
+          "lon": -102,
+          "zoom": 4.6,
+          "allLayers": true
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true,
+          "showAttribution": true
+        },
+        "basemap": {
+          "type": "default",
+          "name": "Basemap"
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Sismos",
+            "tooltip": true,
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "showLegend": true,
+              "style": {
+                "size": {
+                  "field": "magnitude",
+                  "min": 3,
+                  "max": 14,
+                  "fixed": 5
+                },
+                "color": {
+                  "field": "magnitude",
+                  "fixed": "dark-green"
+                },
+                "opacity": 0.6
+              }
+            }
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-YlRd"
+          }
+        },
+        "overrides": []
+      },
+      "description": "Máx. 5,000 eventos (los de mayor magnitud del rango)."
+    },
+    {
+      "id": 6,
+      "title": "Sismos por periodo",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(event_time, $__interval), count(*) AS eventos FROM analytics.fct_earthquakes WHERE $__timeFilter(event_time) AND magnitude >= $min_mag AND ('$ambito' = 'all' OR ('$ambito' = 'near' AND estado IS NOT NULL) OR ('$ambito' = 'land' AND in_mexico_land)) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Top 10 estados por número de sismos",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT estado, count(*) AS eventos FROM analytics.fct_earthquakes WHERE $__timeFilter(event_time) AND estado IS NOT NULL AND magnitude >= $min_mag AND ('$ambito' = 'all' OR ('$ambito' = 'near' AND estado IS NOT NULL) OR ('$ambito' = 'land' AND in_mexico_land)) GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+        }
+      ],
+      "options": {
+        "xField": "estado",
+        "orientation": "horizontal",
+        "legend": {
+          "showLegend": false
+        },
+        "barWidth": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "Cuidado con el sesgo de cobertura: con magnitud mínima baja, Baja California y Sonora dominan por la densidad de sensores vecinos (California/Arizona), no por mayor sismicidad. Sube el filtro de magnitud para comparar estados de forma justa."
+    },
+    {
+      "id": 8,
+      "title": "Distribución por profundidad",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT depth_class AS profundidad, count(*) AS eventos FROM analytics.fct_earthquakes WHERE $__timeFilter(event_time) AND depth_class IS NOT NULL AND magnitude >= $min_mag AND ('$ambito' = 'all' OR ('$ambito' = 'near' AND estado IS NOT NULL) OR ('$ambito' = 'land' AND in_mexico_land)) GROUP BY 1 ORDER BY min(depth_km)"
+        }
+      ],
+      "options": {
+        "xField": "profundidad",
+        "orientation": "auto",
+        "legend": {
+          "showLegend": false
+        },
+        "barWidth": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "Calidad de datos: rechazos por motivo",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 17,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT reason AS motivo, n AS filas FROM ops.v_rejected_by_reason ORDER BY n DESC"
+        }
+      ],
+      "options": {
+        "xField": "motivo",
+        "orientation": "horizontal",
+        "legend": {
+          "showLegend": false
+        },
+        "barWidth": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "description": "Registros enviados a cuarentena (staging.earthquakes_rejected) con la regla que incumplen."
+    },
+    {
+      "id": 10,
+      "title": "Salud del pipeline: filas por run",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "earthquakes-pg"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 17,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "earthquakes-pg"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT finished_at AS time, rows_clean, rows_rejected, rows_fact FROM ops.pipeline_runs WHERE $__timeFilter(finished_at) ORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

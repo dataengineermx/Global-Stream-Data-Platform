@@ -1,0 +1,16 @@
+apiVersion: 1
+datasources:
+  - name: Earthquakes
+    uid: earthquakes-pg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres-data:5432          # nombre del servicio en docker-compose y puerto INTERNO
+    user: grafana_ro
+    isDefault: true
+    jsonData:
+      database: datadb
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: ${GRAFANA_DB_PASSWORD}

@@ -1,0 +1,556 @@
+{
+  "uid": "sismos-usgs",
+  "title": "Sismos USGS",
+  "tags": [
+    "sismos",
+    "usgs"
+  ],
+  "timezone": "utc",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "description": "Fuente: USGS (raw.earthquakes en postgres-data). La variable de magnitud mínima aplica a todos los paneles salvo 'Último evento cargado'.",
+  "templating": {
+    "list": [
+      {
+        "name": "mag_min",
+        "label": "Magnitud mínima",
+        "type": "custom",
+        "hide": 0,
+        "query": "Todas : -10, 2.5+ : 2.5, 4.5+ : 4.5, 5.5+ : 5.5, 6.5+ : 6.5",
+        "current": {
+          "selected": true,
+          "text": "2.5+",
+          "value": "2.5"
+        },
+        "options": [
+          {
+            "selected": false,
+            "text": "Todas",
+            "value": "-10"
+          },
+          {
+            "selected": true,
+            "text": "2.5+",
+            "value": "2.5"
+          },
+          {
+            "selected": false,
+            "text": "4.5+",
+            "value": "4.5"
+          },
+          {
+            "selected": false,
+            "text": "5.5+",
+            "value": "5.5"
+          },
+          {
+            "selected": false,
+            "text": "6.5+",
+            "value": "6.5"
+          }
+        ],
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Eventos en el rango",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"eventos\"\nFROM raw.earthquakes\nWHERE $__timeFilter(time) AND mag >= ${mag_min:raw}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Magnitud máxima",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT max(mag) AS \"magnitud máxima\"\nFROM raw.earthquakes\nWHERE $__timeFilter(time) AND mag >= ${mag_min:raw}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Último evento cargado",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (extract(epoch FROM max(time)) * 1000)::bigint AS \"último evento\"\nFROM raw.earthquakes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeFromNow",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Eventos por día",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(time,'1d'),\n       count(*) AS \"eventos\"\nFROM raw.earthquakes\nWHERE $__timeFilter(time) AND mag >= ${mag_min:raw}\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "axisPlacement": "auto"
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Magnitud máxima por día",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(time,'1d'),\n       max(mag) AS \"magnitud máxima\"\nFROM raw.earthquakes\nWHERE $__timeFilter(time) AND mag >= ${mag_min:raw}\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "points",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "axisPlacement": "auto"
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "geomap",
+      "title": "Los 1000 sismos más fuertes del rango",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 14,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT latitude, longitude, mag, place, time\nFROM raw.earthquakes\nWHERE $__timeFilter(time) AND mag >= ${mag_min:raw}\nORDER BY mag DESC\nLIMIT 1000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 4.5
+              },
+              {
+                "color": "orange",
+                "value": 5.5
+              },
+              {
+                "color": "red",
+                "value": 6.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "basemap": {
+          "config": {},
+          "name": "Basemap",
+          "type": "default"
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Sismos",
+            "tooltip": true,
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": {
+                  "field": "mag",
+                  "fixed": "dark-green"
+                },
+                "opacity": 0.6,
+                "size": {
+                  "field": "mag",
+                  "fixed": 5,
+                  "min": 3,
+                  "max": 16
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "symbolAlign": {
+                  "horizontal": "center",
+                  "vertical": "center"
+                },
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "textConfig": {
+                  "fontSize": 12,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
+                }
+              }
+            }
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "fit",
+          "lat": 0,
+          "lon": 0,
+          "zoom": 1
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "barchart",
+      "title": "Distribución por magnitud",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 10,
+        "x": 14,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT 'M' || g AS \"magnitud\", count(*) AS \"eventos\"\nFROM (SELECT floor(mag)::int AS g\n      FROM raw.earthquakes\n      WHERE $__timeFilter(time) AND mag >= ${mag_min:raw}) s\nGROUP BY g\nORDER BY g"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "axisPlacement": "auto"
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "magnitud",
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Últimos 20 sismos del rango",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-sismos"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-sismos"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT time AS \"hora (UTC)\", mag AS \"magnitud\", depth_km AS \"profundidad (km)\", place AS \"lugar\", id\nFROM raw.earthquakes\nWHERE $__timeFilter(time) AND mag >= ${mag_min:raw}\nORDER BY time DESC\nLIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    }
+  ]
+}

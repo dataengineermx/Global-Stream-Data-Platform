@@ -1,0 +1,14 @@
+# Proveedor de dashboards: carga los .json de /etc/grafana/dashboards
+# (en el compose: ./grafana/dashboards montado en solo lectura).
+apiVersion: 1
+
+providers:
+  - name: sismos
+    orgId: 1
+    folder: Sismos
+    type: file
+    disableDeletion: true
+    allowUiUpdates: true          # permite experimentar en la UI; los cambios no se escriben al archivo
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards

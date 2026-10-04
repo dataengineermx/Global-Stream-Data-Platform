@@ -1,0 +1,255 @@
+# =============================================================================
+# Airflow 3 (CeleryExecutor) - VERSIÓN MÍNIMA
+# Incluye:
+#   - postgres       -> metadata de Airflow (uso interno de Airflow)
+#   - postgres-data  -> NUEVA instancia de Postgres para tus datos/proyectos
+#   - Red compartida "airflow-net" entre Airflow y ambas bases de datos
+# Solo para desarrollo local. No usar en producción.
+#
+# Variables esperadas en el archivo .env (ver ejemplo al final de este archivo)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Plantilla común para todos los servicios de Airflow
+# -----------------------------------------------------------------------------
+x-airflow-common:
+  &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.3.1}
+  env_file:
+    - ${ENV_FILE_PATH:-.env}
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    # Conexión a la BD de METADATA (contenedor "postgres")
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:-airflow_jwt_secret}
+
+    # Conexión de Airflow hacia la NUEVA BD (connection id = "data_db").
+    # Se usa en los DAGs, por ejemplo: PostgresHook(postgres_conn_id="data_db")
+    # Formato: postgresql://usuario:password@host:puerto/basededatos
+    # OJO: el host es el nombre del servicio ("postgres-data") y el puerto es el
+    # interno del contenedor (5432), NO el puerto publicado al host (5433).
+    # Si la contraseña tiene caracteres especiales (@ : / #) debe ir URL-encoded.
+    AIRFLOW_CONN_DATA_DB: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres-data:5432/${APP_DB_NAME}
+
+    # Permite importar código propio con "from src.xxx import ..." (carpeta src montada abajo)
+    PYTHONPATH: /opt/airflow
+  volumes:
+    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+    # Código propio del proyecto (extract/transform/load, loader, backfill)
+    - ${AIRFLOW_PROJ_DIR:-.}/src:/opt/airflow/src
+    - ${AIRFLOW_PROJ_DIR:-.}/sql:/opt/airflow/sql:ro
+  user: "${AIRFLOW_UID:-50000}:0"
+  # Todos los servicios de Airflow se conectan a la red compartida
+  networks:
+    - airflow-net
+  depends_on:
+    &airflow-common-depends-on
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+  # ---------------------------------------------------------------------------
+  # Postgres #1: METADATA de Airflow (no la uses para tus propios datos)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    networks:
+      - airflow-net
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Postgres #2 (NUEVA): base de datos para tus datos/proyectos
+  # Instancia independiente de la metadata, con su propio volumen y credenciales.
+  # ---------------------------------------------------------------------------
+  postgres-data:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_USER: ${APP_DB_USER}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+      POSTGRES_DB: ${APP_DB_NAME}
+    volumes:
+      - postgres-data-volume:/var/lib/postgresql/data
+    # Publica la BD en tu máquina para usar DBeaver, psql, etc.
+    # Se usa 5433 para no chocar con el Postgres local (5432).
+    # Dentro de la red Docker se sigue usando el puerto 5432.
+    # Más seguro si solo accedes desde este servidor o por túnel SSH:
+    #   - "127.0.0.1:${DATA_DB_HOST_PORT:-5433}:5432"
+    ports:
+      - "${DATA_DB_HOST_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER} -d ${APP_DB_NAME}"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    networks:
+      - airflow-net
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Redis: broker de Celery
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.2-bookworm
+    expose:
+      - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+    networks:
+      - airflow-net
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Inicialización (corre una vez): migra la BD, crea carpetas, permisos y admin
+  # ---------------------------------------------------------------------------
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/{logs,dags,plugins,config}
+        /entrypoint airflow version
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/{logs,dags,plugins,config}
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+    user: "0:0"
+
+  # ---------------------------------------------------------------------------
+  # UI + API REST + Execution API  ->  http://localhost:8080
+  # ---------------------------------------------------------------------------
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # Scheduler: planifica y envía tareas a los workers
+  # ---------------------------------------------------------------------------
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # DAG processor: lee y parsea los DAGs de la carpeta dags/
+  # ---------------------------------------------------------------------------
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # Worker Celery: ejecuta las tareas
+  # ---------------------------------------------------------------------------
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    environment:
+      <<: *airflow-common-env
+      DUMB_INIT_SETSID: "0"
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-apiserver:
+        condition: service_healthy
+      # El worker espera a que la BD de datos esté lista antes de ejecutar tareas
+      postgres-data:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+
+  # ---------------------------------------------------------------------------
+  # Grafana
+  # ---------------------------------------------------------------------------
+
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+
+    networks:
+      - airflow-net
+
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - postgres-data
+
+
+# -----------------------------------------------------------------------------
+# Red compartida: Airflow, Postgres (metadata) y Postgres (datos)
+# Nombre fijo "airflow-net" para poder conectarle otros contenedores/proyectos
+# con:  docker network connect airflow-net <contenedor>
+# -----------------------------------------------------------------------------
+networks:
+  airflow-net:
+    name: airflow-net
+    driver: bridge
+
+# -----------------------------------------------------------------------------
+# Volúmenes persistentes (uno por cada instancia de Postgres)
+# -----------------------------------------------------------------------------
+volumes:
+  postgres-db-volume:
+  postgres-data-volume:
+  grafana-data:
